@@ -1,0 +1,6 @@
+gradio==4.18.0
+opencv-python
+tensorflow
+keras
+numpy
+Pillow

@@ -1,6 +1,5 @@
-gradio==4.18.0
-opencv-python
+streamlit
+opencv-python-headless
 tensorflow
-keras
 numpy
 Pillow

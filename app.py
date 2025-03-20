@@ -1,59 +1,44 @@
 import streamlit as st
 import cv2
-from PIL import Image
 import numpy as np
 import tensorflow as tf
+from PIL import Image
 
-# Load model (assumes you have a trained Keras model saved as .h5)
-@st.cache_resource
+# Load model and labels
+model = tf.keras.models.load_model("facial_expression_model.h5")
+labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
 
-def load_model():
-    return tf.keras.models.load_model("facial_expression_model.h5")
+# Cascade for face detection
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-model = load_model()
+st.title("Real-Time Facial Expression Recognition")
+run = st.checkbox('Start Camera')
 
-# Define label map (FER2013 emotions)
-emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
+FRAME_WINDOW = st.image([])
 
-def preprocess_frame(frame):
+cap = cv2.VideoCapture(0)
+
+while run:
+    ret, frame = cap.read()
+    if not ret:
+        st.write("Failed to grab frame")
+        break
+
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-
-    if len(faces) == 0:
-        return None, frame
 
     for (x, y, w, h) in faces:
         face = gray[y:y+h, x:x+w]
         face = cv2.resize(face, (48, 48))
         face = face.astype("float32") / 255.0
-        face = np.expand_dims(face, axis=-1)
-        face = np.expand_dims(face, axis=0)
-        return face, (x, y, w, h)
+        face = np.expand_dims(face, axis=(0, -1))
 
-    return None, frame
+        preds = model.predict(face)
+        emotion = labels[np.argmax(preds)]
 
-st.title("Facial Expression Recognition")
-st.write("This app uses your webcam to detect facial expressions in real time.")
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+        cv2.putText(frame, emotion, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (36,255,12), 2)
 
-run = st.checkbox('Start Webcam')
-FRAME_WINDOW = st.image([])
+    FRAME_WINDOW.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-camera = cv2.VideoCapture(0)
-
-while run:
-    _, frame = camera.read()
-    face_input, box = preprocess_frame(frame)
-    
-    if face_input is not None:
-        prediction = model.predict(face_input)
-        emotion = emotion_labels[np.argmax(prediction)]
-        x, y, w, h = box
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        cv2.putText(frame, emotion, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    FRAME_WINDOW.image(frame)
-else:
-    st.write('Webcam is stopped')
-    camera.release()
+cap.release()
